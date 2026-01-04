@@ -212,7 +212,7 @@ const StatsRadarChart: React.FC<{ stats: Stats }> = ({ stats }) => {
 
   return (
     <div className="h-64 w-full relative -my-4">
-       <ResponsiveContainer width="100%" height="100%">
+       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data}>
           <PolarGrid stroke="#1f2937" />
           <PolarAngleAxis 
@@ -574,7 +574,7 @@ const HistoryView: React.FC<{ history: DailyLog[] }> = ({ history }) => {
           XP GROWTH (Last 7 Days)
         </h3>
         <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={data}>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} />
               <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} />
@@ -594,7 +594,7 @@ const HistoryView: React.FC<{ history: DailyLog[] }> = ({ history }) => {
           GOLD EARNED
         </h3>
         <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={data}>
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} />
               <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} />
