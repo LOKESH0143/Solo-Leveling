@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
-import { Shield, Zap, Brain, TrendingUp, Activity, AlertTriangle, Check, ShoppingBag, Plus, Minus, Lock, Key, Skull, Trash2, X, Settings } from 'lucide-react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { Shield, Zap, Brain, TrendingUp, Activity, AlertTriangle, Check, ShoppingBag, Plus, Minus, Lock, Key, Skull, Trash2, X, Settings, Crown, ArrowUp, ArrowDown, Download, Upload, Save } from 'lucide-react';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { PlayerState, INITIAL_STATE, Quest, Stats, ShopItem, Difficulty, ItemTier } from './types';
 import { DIFFICULTY_REWARDS, TIER_COSTS, DEFAULT_QUEST_POOL, DEFAULT_SHOP_ITEMS, PENALTY_QUESTS, DUNGEON_QUESTS } from './constants';
 
@@ -503,6 +503,180 @@ const BreathingContainer = ({ children, className }: { children: React.ReactNode
   );
 };
 
+const HistoryView: React.FC<{ history: DailyLog[] }> = ({ history }) => {
+  // Get last 7 days for chart
+  const data = history.slice(-7);
+
+  // Comparison Logic
+  const getDaysAgo = (dateStr: string) => {
+    const [y, m, day] = dateStr.split('-').map(Number);
+    const localDate = new Date(y, m - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.floor((today.getTime() - localDate.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const currentWeekLogs = history.filter(h => {
+    const days = getDaysAgo(h.date);
+    return days >= 0 && days < 7;
+  });
+
+  const prevWeekLogs = history.filter(h => {
+    const days = getDaysAgo(h.date);
+    return days >= 7 && days < 14;
+  });
+
+  const currentXp = currentWeekLogs.reduce((acc, log) => acc + log.xp, 0);
+  const prevXp = prevWeekLogs.reduce((acc, log) => acc + log.xp, 0);
+  
+  const currentGold = currentWeekLogs.reduce((acc, log) => acc + log.gold, 0);
+  const prevGold = prevWeekLogs.reduce((acc, log) => acc + log.gold, 0);
+
+  const getGrowth = (current: number, prev: number) => {
+    if (prev === 0) return current > 0 ? 100 : 0;
+    return ((current - prev) / prev) * 100;
+  };
+
+  const xpGrowth = getGrowth(currentXp, prevXp);
+  const goldGrowth = getGrowth(currentGold, prevGold);
+
+  const renderGrowth = (growth: number) => {
+    const isPositive = growth >= 0;
+    const Icon = isPositive ? ArrowUp : ArrowDown;
+    const color = isPositive ? 'text-green-500' : 'text-red-500';
+    return (
+      <div className={`flex items-center text-xs font-bold ${color}`}>
+        <Icon className="w-3 h-3 mr-1" />
+        {Math.abs(growth).toFixed(1)}% vs Last Week
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Weekly Report Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-abyss/50 border border-system-blue/20 rounded-lg p-4 box-glow">
+           <p className="text-xs text-gray-400 uppercase mb-1">Weekly XP</p>
+           <p className="text-2xl font-bold text-white mb-2">{currentXp}</p>
+           {renderGrowth(xpGrowth)}
+        </div>
+        <div className="bg-abyss/50 border border-yellow-500/20 rounded-lg p-4 box-glow">
+           <p className="text-xs text-gray-400 uppercase mb-1">Weekly Gold</p>
+           <p className="text-2xl font-bold text-yellow-500 mb-2">{currentGold}</p>
+           {renderGrowth(goldGrowth)}
+        </div>
+      </div>
+
+      <div className="bg-abyss/50 border border-system-blue/20 rounded-lg p-4 box-glow">
+        <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-system-blue" />
+          XP GROWTH (Last 7 Days)
+        </h3>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} />
+              <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#000', border: '1px solid #00A8FF' }}
+                itemStyle={{ color: '#fff' }}
+              />
+              <Bar dataKey="xp" fill="#00A8FF" name="XP Earned" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-abyss/50 border border-yellow-500/20 rounded-lg p-4 box-glow">
+        <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+          <ShoppingBag className="w-4 h-4 text-yellow-500" />
+          GOLD EARNED
+        </h3>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} />
+              <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#000', border: '1px solid #eab308' }}
+                itemStyle={{ color: '#fff' }}
+              />
+              <Bar dataKey="gold" fill="#eab308" name="Gold Earned" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SettingsModal = ({ isOpen, onClose, onExport, onImport }: { isOpen: boolean, onClose: () => void, onExport: () => void, onImport: (data: string) => void }) => {
+  const [importString, setImportString] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleImportClick = () => {
+    setError(null);
+    if (!importString) {
+      setError("NO DATA DETECTED");
+      return;
+    }
+    onImport(importString);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-abyss border border-system-blue p-6 w-full max-w-md box-glow relative">
+        <button onClick={onClose} className="absolute top-2 right-2 text-gray-500 hover:text-white"><X /></button>
+        
+        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+          <Settings className="w-6 h-6 text-system-blue animate-spin-slow" />
+          SYSTEM MEMORY
+        </h2>
+
+        <div className="space-y-6">
+          {/* Export Section */}
+          <div className="space-y-2">
+            <p className="text-xs text-system-blue uppercase tracking-widest">Backup Reality</p>
+            <button 
+              onClick={onExport}
+              className="w-full py-3 bg-system-blue/10 border border-system-blue text-system-blue font-bold uppercase tracking-widest hover:bg-system-blue hover:text-black transition-all flex items-center justify-center gap-2 group"
+            >
+              <Download className="w-4 h-4 group-hover:animate-bounce" />
+              EXPORT MEMORY CRYSTAL
+            </button>
+            <p className="text-[10px] text-gray-500">Copies your current status to clipboard as an encrypted key.</p>
+          </div>
+
+          <div className="h-px bg-gray-800" />
+
+          {/* Import Section */}
+          <div className="space-y-2">
+            <p className="text-xs text-green-500 uppercase tracking-widest">Restore Reality</p>
+            <textarea
+              value={importString}
+              onChange={(e) => setImportString(e.target.value)}
+              placeholder="PASTE MEMORY CRYSTAL HERE..."
+              className="w-full h-24 bg-black border border-green-500/50 p-2 text-green-500 font-mono text-xs focus:outline-none focus:border-green-500 resize-none placeholder-green-900"
+            />
+            {error && <p className="text-red-500 text-xs font-bold animate-pulse">{error}</p>}
+            <button 
+              onClick={handleImportClick}
+              className="w-full py-3 bg-green-900/20 border border-green-500 text-green-500 font-bold uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all flex items-center justify-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              RESTORE SYSTEM MEMORY
+            </button>
+            <p className="text-[10px] text-red-400">WARNING: This will overwrite your current existence.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Main App Component ---
 
 export default function App() {
@@ -515,12 +689,57 @@ export default function App() {
   
   // New UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<{ index: number, data: any } | null>(null);
   const [viewMode, setViewMode] = useState<'daily' | 'manage'>('daily');
+  const [activeTab, setActiveTab] = useState<'quests' | 'shop' | 'history'>('quests');
 
   // Timer State
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+
+  // Domain State
+  const [domainActive, setDomainActive] = useState(false);
+  const [domainTimeLeft, setDomainTimeLeft] = useState(0);
+
+  // Domain Timer Logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (domainActive && domainTimeLeft > 0) {
+      interval = setInterval(() => {
+        setDomainTimeLeft((prev) => {
+          if (prev <= 1) {
+            // Domain Finished Successfully
+            clearInterval(interval);
+            setDomainActive(false);
+            playSystemSound('levelup');
+            triggerHaptic('heavy');
+            setStatToast("DOMAIN CONQUERED! BONUS XP!");
+            addXp(200); // Bonus XP for finishing
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [domainActive, domainTimeLeft]);
+
+  const enterDomain = () => {
+    setDomainActive(true);
+    setDomainTimeLeft(45 * 60); // 45 Minutes
+    playSystemSound('levelup'); // Use intense sound
+    triggerHaptic('heavy');
+  };
+
+  const exitDomain = () => {
+    if (confirm("Leaving the Domain early will dissipate your focus. Are you sure?")) {
+      setDomainActive(false);
+      setDomainTimeLeft(0);
+      playSystemSound('error');
+      triggerHaptic('medium');
+    }
+  };
 
   // Initialization & Daily Reset Logic
   useEffect(() => {
@@ -894,6 +1113,49 @@ export default function App() {
     }));
   };
 
+  // System Memory Logic
+  const handleExportSave = () => {
+    try {
+      const json = JSON.stringify(state);
+      const encoded = btoa(json);
+      navigator.clipboard.writeText(encoded);
+      setStatToast("MEMORY CRYSTAL COPIED");
+      playSystemSound('success');
+      triggerHaptic('medium');
+      setTimeout(() => setStatToast(null), 3000);
+    } catch (e) {
+      console.error("Export failed", e);
+      setStatToast("EXPORT FAILED");
+    }
+  };
+
+  const handleImportSave = (encodedData: string) => {
+    try {
+      const json = atob(encodedData);
+      const parsed = JSON.parse(json);
+      
+      // Basic Validation
+      if (!parsed.level || !parsed.stats) {
+        throw new Error("Invalid Data Structure");
+      }
+
+      if (confirm("WARNING: Overwriting current reality. Proceed?")) {
+        setState(parsed);
+        saveState(parsed);
+        setIsSettingsOpen(false);
+        setStatToast("SYSTEM RESTORED");
+        playSystemSound('levelup');
+        triggerHaptic('heavy');
+        setTimeout(() => setStatToast(null), 3000);
+      }
+    } catch (e) {
+      console.error("Import failed", e);
+      playSystemSound('error');
+      triggerHaptic('heavy');
+      alert("ERROR: CORRUPTED DATA. The System cannot read this memory.");
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -915,6 +1177,13 @@ export default function App() {
         onClose={() => { setIsAddModalOpen(false); setEditingItem(null); }} 
         onAdd={handleAddItem} 
         editData={editingItem?.data}
+      />
+
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        onExport={handleExportSave} 
+        onImport={handleImportSave}
       />
 
       {/* --- Stat Toast --- */}
@@ -1031,11 +1300,39 @@ export default function App() {
       </AnimatePresence>
 
       {/* --- Main Content --- */}
-      <div className="max-w-md mx-auto p-4 space-y-6">
+      <div className="max-w-md mx-auto p-4 space-y-6 relative z-10">
         
+        {/* Domain Header */}
+        {domainActive && (
+          <motion.div 
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="sticky top-2 z-50 bg-black/80 backdrop-blur border border-purple-500 p-2 rounded-lg flex justify-between items-center box-glow-purple mb-4"
+          >
+            <div className="flex items-center gap-2 text-purple-400">
+              <Crown className="w-5 h-5 animate-pulse" />
+              <span className="font-bold tracking-widest text-sm">MONARCH'S DOMAIN</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xl font-bold text-white">{formatTime(domainTimeLeft)}</span>
+              <button onClick={exitDomain} className="text-xs text-red-500 hover:text-red-400 font-bold border border-red-500/50 px-2 py-1 rounded">
+                GIVE UP
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Header / Status Window */}
-        <header className="space-y-1">
-          <div className="flex justify-between items-end">
+        <header className="space-y-1 relative">
+          {/* Settings Icon */}
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="absolute top-0 right-0 text-gray-500 hover:text-system-blue transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <div className="flex justify-between items-end pr-8">
             <div>
               <p className="text-xs text-system-blue uppercase tracking-widest mb-1">Player Name</p>
               <h1 className="text-2xl font-bold text-white tracking-wide text-glow">{state.name}</h1>
@@ -1055,9 +1352,23 @@ export default function App() {
                 {state.gold} G
                 </span>
             </div>
-            <div className="px-3 py-1 border border-system-blue bg-system-blue/20 rounded text-sm font-bold text-white box-glow animate-pulse">
-                {rank}
-            </div>
+            
+            {!domainActive && (
+              <button 
+                onClick={enterDomain}
+                className="px-3 py-1 border border-purple-500 bg-purple-900/20 rounded text-xs font-bold text-purple-300 hover:bg-purple-900/50 hover:text-white transition-all flex items-center gap-1"
+              >
+                <Crown className="w-3 h-3" />
+                ENTER DOMAIN
+              </button>
+            )}
+            
+            {domainActive && (
+               <div className="px-3 py-1 border border-purple-500 bg-purple-900/50 rounded text-xs font-bold text-purple-300 animate-pulse flex items-center gap-1">
+                <Crown className="w-3 h-3" />
+                DOMAIN ACTIVE
+              </div>
+            )}
           </div>
         </header>
 
@@ -1156,78 +1467,109 @@ export default function App() {
             )}
         </section>
 
-        {/* Daily Quests */}
-        <section className="space-y-4">
-          <div className="flex justify-between items-center border-l-4 border-system-blue pl-3">
-            <h2 className="text-lg font-bold text-white">{viewMode === 'daily' ? 'DAILY QUESTS' : 'QUEST POOL'}</h2>
-            <button 
-              onClick={() => {
-                setViewMode(viewMode === 'daily' ? 'manage' : 'daily');
-                playSystemSound('click');
-                triggerHaptic('light');
-              }} 
-              className="text-xs text-system-blue hover:text-white flex items-center gap-1 relative z-20 cursor-pointer"
-            >
-              <Settings className="w-3 h-3" />
-              {viewMode === 'daily' ? 'MANAGE' : 'VIEW DAILY'}
-            </button>
-          </div>
-          
-          <BreathingContainer className="bg-abyss/50">
-            <div className="space-y-2">
-              {viewMode === 'daily' ? (
-                state.dailyQuests.length === 0 ? (
-                  <p className="text-gray-500 text-sm italic">No quests available. Wait for reset.</p>
-                ) : (
-                  state.dailyQuests.map(quest => (
-                    <QuestItem 
-                      key={quest.id} 
-                      quest={quest} 
-                      onComplete={completeQuest} 
-                    />
-                  ))
-                )
-              ) : (
-                state.questPool.length === 0 ? (
-                  <p className="text-gray-500 text-sm italic">Pool is empty.</p>
-                ) : (
-                  state.questPool.map((quest, i) => {
-                    const isInDaily = state.dailyQuests.some(d => d.title === quest.title);
-                    return (
-                      <QuestItem 
-                        key={i} 
-                        quest={{ ...quest, id: `pool-${i}`, isCompleted: false, type: 'daily' }} 
-                        onAddToDaily={!isInDaily ? () => handleAddToDaily(i) : undefined}
-                        onRemoveFromDaily={isInDaily ? () => handleRemoveFromDailyByTitle(quest.title) : undefined}
-                        onEdit={() => openEditModal(i)}
-                        onDelete={() => handleDeleteQuest(i)}
-                      />
-                    );
-                  })
-                )
-              )}
-            </div>
-          </BreathingContainer>
-        </section>
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 border-b border-system-blue/30 pb-2">
+          <button 
+            onClick={() => { setActiveTab('quests'); playSystemSound('click'); }}
+            className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider transition-all ${activeTab === 'quests' ? 'text-system-blue border-b-2 border-system-blue' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Quests
+          </button>
+          <button 
+            onClick={() => { setActiveTab('shop'); playSystemSound('click'); }}
+            className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider transition-all ${activeTab === 'shop' ? 'text-yellow-500 border-b-2 border-yellow-500' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Shop
+          </button>
+          <button 
+            onClick={() => { setActiveTab('history'); playSystemSound('click'); }}
+            className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider transition-all ${activeTab === 'history' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Logs
+          </button>
+        </div>
 
-        {/* Shop */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-yellow-500" />
-            <h2 className="text-lg font-bold text-white">ITEM SHOP</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            {state.shopItems.map(item => (
-              <ShopItemCard 
-                key={item.id} 
-                item={item} 
-                canAfford={state.gold >= item.cost}
-                onBuy={() => buyItem(item.cost)}
-                onDelete={() => handleDeleteShopItem(item.id)}
-              />
-            ))}
-          </div>
-        </section>
+        {/* Content Area */}
+        <div className="min-h-[300px]">
+          {activeTab === 'quests' && (
+            <section className="space-y-4">
+              <div className="flex justify-between items-center border-l-4 border-system-blue pl-3">
+                <h2 className="text-lg font-bold text-white">{viewMode === 'daily' ? 'DAILY QUESTS' : 'QUEST POOL'}</h2>
+                <button 
+                  onClick={() => {
+                    setViewMode(viewMode === 'daily' ? 'manage' : 'daily');
+                    playSystemSound('click');
+                    triggerHaptic('light');
+                  }} 
+                  className="text-xs text-system-blue hover:text-white flex items-center gap-1 relative z-20 cursor-pointer"
+                >
+                  <Settings className="w-3 h-3" />
+                  {viewMode === 'daily' ? 'MANAGE' : 'VIEW DAILY'}
+                </button>
+              </div>
+              
+              <BreathingContainer className="bg-abyss/50">
+                <div className="space-y-2">
+                  {viewMode === 'daily' ? (
+                    state.dailyQuests.length === 0 ? (
+                      <p className="text-gray-500 text-sm italic">No quests available. Wait for reset.</p>
+                    ) : (
+                      state.dailyQuests.map(quest => (
+                        <QuestItem 
+                          key={quest.id} 
+                          quest={quest} 
+                          onComplete={completeQuest} 
+                        />
+                      ))
+                    )
+                  ) : (
+                    state.questPool.length === 0 ? (
+                      <p className="text-gray-500 text-sm italic">Pool is empty.</p>
+                    ) : (
+                      state.questPool.map((quest, i) => {
+                        const isInDaily = state.dailyQuests.some(d => d.title === quest.title);
+                        return (
+                          <QuestItem 
+                            key={i} 
+                            quest={{ ...quest, id: `pool-${i}`, isCompleted: false, type: 'daily' }} 
+                            onAddToDaily={!isInDaily ? () => handleAddToDaily(i) : undefined}
+                            onRemoveFromDaily={isInDaily ? () => handleRemoveFromDailyByTitle(quest.title) : undefined}
+                            onEdit={() => openEditModal(i)}
+                            onDelete={() => handleDeleteQuest(i)}
+                          />
+                        );
+                      })
+                    )
+                  )}
+                </div>
+              </BreathingContainer>
+            </section>
+          )}
+
+          {activeTab === 'shop' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-yellow-500" />
+                <h2 className="text-lg font-bold text-white">ITEM SHOP</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {state.shopItems.map(item => (
+                  <ShopItemCard 
+                    key={item.id} 
+                    item={item} 
+                    canAfford={state.gold >= item.cost}
+                    onBuy={() => buyItem(item.cost)}
+                    onDelete={() => handleDeleteShopItem(item.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'history' && (
+            <HistoryView history={state.history || []} />
+          )}
+        </div>
 
       </div>
 

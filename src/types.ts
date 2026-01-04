@@ -30,6 +30,13 @@ export interface ShopItem {
   tier?: ItemTier;
 }
 
+export interface DailyLog {
+  date: string;
+  xp: number;
+  gold: number;
+  stats: Stats;
+}
+
 export interface PlayerState {
   name: string;
   title: string;
@@ -47,6 +54,7 @@ export interface PlayerState {
   questPool: Omit<Quest, 'id' | 'isCompleted' | 'type'>[];
   shopItems: ShopItem[];
   currentStreak: number;
+  history: DailyLog[];
 }
 
 export const INITIAL_STATE: PlayerState = {
@@ -71,4 +79,5 @@ export const INITIAL_STATE: PlayerState = {
   questPool: [], // Will be populated from default constants if empty on load
   shopItems: [], // Will be populated from default constants if empty on load
   currentStreak: 0,
+  history: [],
 };
