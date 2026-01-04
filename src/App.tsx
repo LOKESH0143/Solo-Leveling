@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
-import { Shield, Zap, Brain, TrendingUp, Activity, AlertTriangle, Check, ShoppingBag, Plus, Lock, Key, Skull, Trash2, X, Settings } from 'lucide-react';
+import { Shield, Zap, Brain, TrendingUp, Activity, AlertTriangle, Check, ShoppingBag, Plus, Minus, Lock, Key, Skull, Trash2, X, Settings } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { PlayerState, INITIAL_STATE, Quest, Stats, ShopItem, Difficulty, ItemTier } from './types';
 import { DIFFICULTY_REWARDS, TIER_COSTS, DEFAULT_QUEST_POOL, DEFAULT_SHOP_ITEMS, PENALTY_QUESTS, DUNGEON_QUESTS } from './constants';
@@ -22,6 +22,16 @@ const loadState = (): PlayerState => {
       if (parsed.currentStreak === undefined) {
         parsed.currentStreak = 0;
       }
+      // Migrate quests to have relatedStat if missing
+      parsed.questPool = parsed.questPool.map((q: any) => ({
+        ...q,
+        relatedStat: q.relatedStat || 'STR' // Default to STR if missing
+      }));
+      parsed.dailyQuests = parsed.dailyQuests.map((q: any) => ({
+        ...q,
+        relatedStat: q.relatedStat || 'STR'
+      }));
+      
       return parsed;
     }
   } catch (e) {
@@ -225,27 +235,26 @@ const StatsRadarChart: React.FC<{ stats: Stats }> = ({ stats }) => {
   );
 };
 
-const StatRow: React.FC<{ label: string, value: number, onIncrease: () => void, canIncrease: boolean, icon: any }> = ({ label, value, onIncrease, canIncrease, icon: Icon }) => (
-  <div className="flex items-center justify-between p-2 border border-system-blue/20 bg-abyss/50 rounded hover:bg-system-blue/5 transition-colors">
+const StatRow: React.FC<{ label: string, value: number, icon: any }> = ({ label, value, icon: Icon }) => (
+  <div className="flex items-center justify-between p-2 border border-system-blue/20 bg-abyss/50 rounded hover:bg-system-blue/5 transition-colors box-glow-subtle">
     <div className="flex items-center gap-3">
       <Icon className="w-5 h-5 text-system-blue" />
       <span className="text-gray-300 font-bold">{label}</span>
     </div>
     <div className="flex items-center gap-4">
-      <span className="text-xl font-mono text-white">{value}</span>
-      {canIncrease && (
-        <button
-          onClick={onIncrease}
-          className="p-1 bg-system-blue/20 hover:bg-system-blue/40 rounded text-system-blue transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      )}
+      <span className="text-xl font-mono text-white text-glow">{value.toFixed(1)}</span>
     </div>
   </div>
 );
 
-const QuestItem: React.FC<{ quest: Quest, onComplete: (id: string) => void, onDelete?: () => void }> = ({ quest, onComplete, onDelete }) => {
+const QuestItem: React.FC<{ 
+  quest: Quest, 
+  onComplete?: (id: string) => void, 
+  onDelete?: () => void,
+  onAddToDaily?: () => void,
+  onRemoveFromDaily?: () => void,
+  onEdit?: () => void
+}> = ({ quest, onComplete, onDelete, onAddToDaily, onRemoveFromDaily, onEdit }) => {
   const content = (
     <div className={`relative p-4 border-l-4 ${quest.isCompleted ? 'border-gray-600 bg-gray-900/30' : 'border-system-blue bg-system-blue/5'} mb-3 rounded-r-lg overflow-hidden group box-glow transition-all hover:scale-[1.02]`}>
       <div className="flex items-center justify-between z-10 relative">
@@ -257,24 +266,71 @@ const QuestItem: React.FC<{ quest: Quest, onComplete: (id: string) => void, onDe
             <span className={`${quest.isCompleted ? 'text-gray-600' : 'text-system-blue'}`}>XP +{quest.xpReward}</span>
             <span className={`${quest.isCompleted ? 'text-gray-600' : 'text-yellow-500'}`}>GOLD +{quest.goldReward}</span>
             {quest.difficulty && <span className="text-purple-400 font-bold">[{quest.difficulty}-Rank]</span>}
+            {quest.relatedStat && <span className="text-green-400 font-bold">[{quest.relatedStat}]</span>}
           </div>
         </div>
-        <button
-          onClick={() => !quest.isCompleted && onComplete(quest.id)}
-          disabled={quest.isCompleted}
-          className={`p-2 rounded-full border ${
-            quest.isCompleted
-              ? 'border-gray-600 text-gray-600'
-              : 'border-system-blue text-system-blue hover:bg-system-blue hover:text-black'
-          } transition-all`}
-        >
-          <Check className="w-5 h-5" />
-        </button>
+        
+        <div className="flex items-center gap-2">
+          {onAddToDaily && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddToDaily(); }}
+              className="p-2 rounded-full border border-system-blue text-system-blue hover:bg-system-blue hover:text-black transition-all"
+              title="Add to Daily Schedule"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
+
+          {onRemoveFromDaily && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemoveFromDaily(); }}
+              className="p-2 rounded-full border border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all"
+              title="Remove from Daily Schedule"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+          )}
+          
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="p-2 rounded-full border border-gray-500 text-gray-500 hover:bg-gray-700 hover:text-white transition-all"
+              title="Edit Quest"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
+
+          {onComplete && (
+            <button
+              onClick={() => !quest.isCompleted && onComplete(quest.id)}
+              disabled={quest.isCompleted}
+              className={`p-2 rounded-full border ${
+                quest.isCompleted
+                  ? 'border-gray-600 text-gray-600'
+                  : 'border-system-blue text-system-blue hover:bg-system-blue hover:text-black'
+              } transition-all`}
+            >
+              <Check className="w-5 h-5" />
+            </button>
+          )}
+          
+          {onDelete && !onComplete && (
+             <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="p-2 rounded-full border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+              title="Delete Quest"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 
-  if (onDelete) {
+  if (onDelete && onComplete) {
+    // Only swipeable in daily view (where onComplete exists)
     return <SwipeableItem onDelete={onDelete}>{content}</SwipeableItem>;
   }
   return content;
@@ -309,23 +365,43 @@ const ShopItemCard: React.FC<{ item: ShopItem, canAfford: boolean, onBuy: () => 
   return content;
 };
 
-const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean, onClose: () => void, onAdd: (type: 'quest' | 'reward', data: any) => void }) => {
+const AddItemModal = ({ isOpen, onClose, onAdd, editData }: { isOpen: boolean, onClose: () => void, onAdd: (type: 'quest' | 'reward', data: any) => void, editData?: any }) => {
   const [type, setType] = useState<'quest' | 'reward'>('quest');
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('E');
+  const [relatedStat, setRelatedStat] = useState<StatType>('STR');
   const [tier, setTier] = useState<ItemTier>('Small');
   const [isCalculating, setIsCalculating] = useState(false);
+
+  useEffect(() => {
+    if (editData) {
+      setType(editData.type || 'quest');
+      setTitle(editData.title || '');
+      setDifficulty(editData.difficulty || 'E');
+      setRelatedStat(editData.relatedStat || 'STR');
+      setTier(editData.tier || 'Small');
+    } else {
+      // Reset defaults
+      setTitle('');
+      setDifficulty('E');
+      setRelatedStat('STR');
+      setTier('Small');
+    }
+  }, [editData, isOpen]);
 
   const handleSubmit = () => {
     setIsCalculating(true);
     setTimeout(() => {
       setIsCalculating(false);
-      onAdd(type, type === 'quest' ? { title, difficulty } : { title, tier });
+      onAdd(type, type === 'quest' ? { title, difficulty, relatedStat } : { title, tier });
       onClose();
-      setTitle('');
-      setDifficulty('E');
-      setTier('Small');
-    }, 1500); // Fake calculation delay
+      if (!editData) {
+        setTitle('');
+        setDifficulty('E');
+        setRelatedStat('STR');
+        setTier('Small');
+      }
+    }, 1000); 
   };
 
   if (!isOpen) return null;
@@ -335,12 +411,14 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean, onClose: ()
       <div className="bg-abyss border border-system-blue p-6 w-full max-w-sm box-glow relative">
         <button onClick={onClose} className="absolute top-2 right-2 text-gray-500 hover:text-white"><X /></button>
         
-        <h2 className="text-xl font-bold text-white mb-4">ADD NEW ENTRY</h2>
+        <h2 className="text-xl font-bold text-white mb-4">{editData ? 'EDIT ENTRY' : 'ADD NEW ENTRY'}</h2>
         
-        <div className="flex gap-2 mb-4">
-          <button onClick={() => setType('quest')} className={`flex-1 py-2 font-bold ${type === 'quest' ? 'bg-system-blue text-black' : 'border border-gray-700 text-gray-500'}`}>QUEST</button>
-          <button onClick={() => setType('reward')} className={`flex-1 py-2 font-bold ${type === 'reward' ? 'bg-yellow-500 text-black' : 'border border-gray-700 text-gray-500'}`}>REWARD</button>
-        </div>
+        {!editData && (
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setType('quest')} className={`flex-1 py-2 font-bold ${type === 'quest' ? 'bg-system-blue text-black' : 'border border-gray-700 text-gray-500'}`}>QUEST</button>
+            <button onClick={() => setType('reward')} className={`flex-1 py-2 font-bold ${type === 'reward' ? 'bg-yellow-500 text-black' : 'border border-gray-700 text-gray-500'}`}>REWARD</button>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div>
@@ -354,16 +432,28 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean, onClose: ()
           </div>
 
           {type === 'quest' ? (
-            <div>
-              <label className="text-xs text-system-blue uppercase">Difficulty Rank</label>
-              <select 
-                value={difficulty} 
-                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-                className="w-full bg-black border border-system-blue/50 p-2 text-white focus:outline-none"
-              >
-                {Object.keys(DIFFICULTY_REWARDS).map(d => <option key={d} value={d}>{d}-Rank</option>)}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="text-xs text-system-blue uppercase">Difficulty Rank</label>
+                <select 
+                  value={difficulty} 
+                  onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                  className="w-full bg-black border border-system-blue/50 p-2 text-white focus:outline-none"
+                >
+                  {Object.keys(DIFFICULTY_REWARDS).map(d => <option key={d} value={d}>{d}-Rank</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-system-blue uppercase">Related Stat</label>
+                <select 
+                  value={relatedStat} 
+                  onChange={(e) => setRelatedStat(e.target.value as StatType)}
+                  className="w-full bg-black border border-system-blue/50 p-2 text-white focus:outline-none"
+                >
+                  {['STR', 'VIT', 'INT', 'SEN', 'AGI'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </>
           ) : (
              <div>
               <label className="text-xs text-yellow-500 uppercase">Reward Tier</label>
@@ -421,9 +511,11 @@ export default function App() {
   const [showStatModal, setShowStatModal] = useState(false);
   const [penaltyModalOpen, setPenaltyModalOpen] = useState(false);
   const [lootDrop, setLootDrop] = useState<string | null>(null);
+  const [statToast, setStatToast] = useState<string | null>(null);
   
   // New UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ index: number, data: any } | null>(null);
   const [viewMode, setViewMode] = useState<'daily' | 'manage'>('daily');
 
   // Timer State
@@ -449,8 +541,6 @@ export default function App() {
         newState.currentStreak = 0; // Reset streak on failure
       } else {
         // Normal reset
-        // Streak Logic: If all completed yesterday, increment. Else reset (though if empty list, maybe maintain? Assuming active usage)
-        // If yesterdayQuests was empty (new user), streak stays 0.
         if (allCompleted) {
           newState.currentStreak = (newState.currentStreak || 0) + 1;
         } else {
@@ -515,7 +605,7 @@ export default function App() {
 
   const addXp = (amount: number) => {
     setState(prev => {
-      let { currentXp, maxXp, level, unassignedPoints, currentStreak } = prev;
+      let { currentXp, maxXp, level, currentStreak } = prev;
       
       // Apply Streak Multiplier
       const multiplier = 1.0 + ((currentStreak || 0) * 0.05);
@@ -524,14 +614,12 @@ export default function App() {
       let newXp = currentXp + adjustedAmount;
       let newLevel = level;
       let newMaxXp = maxXp;
-      let newPoints = unassignedPoints;
       let leveledUp = false;
 
       while (newXp >= newMaxXp) {
         newXp -= newMaxXp;
         newLevel++;
         newMaxXp = Math.floor(newMaxXp * 1.3);
-        newPoints += 5;
         leveledUp = true;
       }
 
@@ -547,7 +635,6 @@ export default function App() {
         level: newLevel,
         currentXp: newXp,
         maxXp: newMaxXp,
-        unassignedPoints: newPoints,
       };
     });
   };
@@ -578,33 +665,58 @@ export default function App() {
     if (state.activeDungeon && state.activeDungeon.id === id) {
         playSystemSound('success');
         triggerHaptic('heavy');
-        setState(prev => ({
-            ...prev,
-            gold: prev.gold + (prev.activeDungeon?.goldReward || 0),
-            activeDungeon: null, // Clear dungeon
-        }));
+        setState(prev => {
+            const stat = prev.activeDungeon?.relatedStat || 'STR';
+            const newStats = { ...prev.stats };
+            newStats[stat.toLowerCase() as keyof Stats] += 0.5;
+            setStatToast(`${stat} +0.5`);
+            setTimeout(() => setStatToast(null), 2000);
+
+            return {
+                ...prev,
+                gold: prev.gold + (prev.activeDungeon?.goldReward || 0),
+                stats: newStats,
+                activeDungeon: null, // Clear dungeon
+            };
+        });
         if (state.activeDungeon) addXp(state.activeDungeon.xpReward);
         return;
     }
 
     setState(prev => {
       const quests = prev.dailyQuests.map(q => {
-        if (q.id === id) return { ...q, isCompleted: true };
+        if (q.id === id) return { ...q, isCompleted: !q.isCompleted }; // Toggle
         return q;
       });
       const quest = prev.dailyQuests.find(q => q.id === id);
       const goldReward = quest ? quest.goldReward : 0;
       const xpReward = quest ? quest.xpReward : 0;
+      const stat = quest?.relatedStat || 'STR';
+      const statKey = stat.toLowerCase() as keyof Stats;
       
-      // Only play sound if it wasn't already completed
-      if (quest && !quest.isCompleted) {
-        playSystemSound('success');
-        triggerHaptic('medium');
+      let newGold = prev.gold;
+      let newStats = { ...prev.stats };
+
+      if (quest) {
+        if (!quest.isCompleted) {
+            // Completing
+            newGold += goldReward;
+            newStats[statKey] += 0.5;
+            playSystemSound('success');
+            triggerHaptic('medium');
+            setStatToast(`${stat} +0.5`);
+            setTimeout(() => setStatToast(null), 2000);
+        } else {
+            // Un-completing
+            newGold = Math.max(0, newGold - goldReward);
+            newStats[statKey] = Math.max(0, newStats[statKey] - 0.5);
+            triggerHaptic('light');
+        }
       }
 
-      // Loot Drop Logic (10% chance)
+      // Loot Drop Logic (10% chance) - Only on completion
       let newInventory = [...(prev.inventory || [])];
-      if (Math.random() > 0.9 && quest && !quest.isCompleted) {
+      if (quest && !quest.isCompleted && Math.random() > 0.9) {
           newInventory.push("Instance Dungeon Key");
           setLootDrop("Instance Dungeon Key");
           playSystemSound('levelup'); // Use levelup sound for rare drop
@@ -613,7 +725,8 @@ export default function App() {
 
       return {
         ...prev,
-        gold: prev.gold + goldReward,
+        gold: newGold,
+        stats: newStats,
         dailyQuests: quests,
         inventory: newInventory,
       };
@@ -621,21 +734,14 @@ export default function App() {
 
     // Add XP separately to handle leveling logic cleanly
     const quest = state.dailyQuests.find(q => q.id === id);
-    if (quest && !quest.isCompleted) addXp(quest.xpReward);
-  };
-
-  const increaseStat = (stat: keyof Stats) => {
-    if (state.unassignedPoints <= 0) return;
-    playSystemSound('click');
-    triggerHaptic('light');
-    setState(prev => ({
-      ...prev,
-      unassignedPoints: prev.unassignedPoints - 1,
-      stats: {
-        ...prev.stats,
-        [stat]: prev.stats[stat] + 1,
-      }
-    }));
+    if (quest && !quest.isCompleted) {
+        addXp(quest.xpReward);
+    } else if (quest && quest.isCompleted) {
+        setState(prev => ({
+            ...prev,
+            currentXp: Math.max(0, prev.currentXp - quest.xpReward)
+        }));
+    }
   };
 
   const buyItem = (cost: number) => {
@@ -667,45 +773,110 @@ export default function App() {
 
   const handleAddItem = (type: 'quest' | 'reward', data: any) => {
     setState(prev => {
-      if (type === 'quest') {
-        const rewards = DIFFICULTY_REWARDS[data.difficulty as Difficulty];
-        const newQuest = {
-          title: data.title,
-          xpReward: rewards.xp,
-          goldReward: rewards.gold,
-          difficulty: data.difficulty,
-        };
-        const newPool = [...prev.questPool, newQuest];
-        // Also add to daily quests if in daily view? No, just pool.
-        // But user might want to see it immediately. Let's add it to daily quests too for instant gratification if it's not full?
-        // Actually, let's just add to pool. If they want to do it today, they can wait or we can force add it.
-        // Let's add it to daily quests as well so they can do it now.
-        const activeQuest = {
-          ...newQuest,
-          id: `daily-${Date.now()}`,
-          isCompleted: false,
-          type: 'daily' as const,
-        };
-        return {
-          ...prev,
-          questPool: newPool,
-          dailyQuests: [...prev.dailyQuests, activeQuest],
-        };
+      if (editingItem !== null) {
+        // Editing existing item
+        if (type === 'quest') {
+          const rewards = DIFFICULTY_REWARDS[data.difficulty as Difficulty];
+          const updatedQuest = {
+            ...prev.questPool[editingItem.index],
+            title: data.title,
+            xpReward: rewards.xp,
+            goldReward: rewards.gold,
+            difficulty: data.difficulty,
+            relatedStat: data.relatedStat,
+          };
+          const newPool = [...prev.questPool];
+          newPool[editingItem.index] = updatedQuest;
+          return { ...prev, questPool: newPool };
+        } else {
+          // Shop item editing not fully implemented in UI trigger yet, but logic here
+          return prev;
+        }
       } else {
-        const cost = TIER_COSTS[data.tier as ItemTier];
-        const newItem = {
-          id: `shop-${Date.now()}`,
-          name: data.title,
-          cost: cost,
-          description: `${data.tier} Reward`,
-          tier: data.tier,
-        };
-        return {
-          ...prev,
-          shopItems: [...prev.shopItems, newItem],
-        };
+        // Adding new item
+        if (type === 'quest') {
+          const rewards = DIFFICULTY_REWARDS[data.difficulty as Difficulty];
+          const newQuest = {
+            title: data.title,
+            xpReward: rewards.xp,
+            goldReward: rewards.gold,
+            difficulty: data.difficulty,
+            relatedStat: data.relatedStat,
+          };
+          const newPool = [...prev.questPool, newQuest];
+          const activeQuest = {
+            ...newQuest,
+            id: `daily-${Date.now()}`,
+            isCompleted: false,
+            type: 'daily' as const,
+          };
+          return {
+            ...prev,
+            questPool: newPool,
+            dailyQuests: [...prev.dailyQuests, activeQuest],
+          };
+        } else {
+          const cost = TIER_COSTS[data.tier as ItemTier];
+          const newItem = {
+            id: `shop-${Date.now()}`,
+            name: data.title,
+            cost: cost,
+            description: `${data.tier} Reward`,
+            tier: data.tier,
+          };
+          return {
+            ...prev,
+            shopItems: [...prev.shopItems, newItem],
+          };
+        }
       }
     });
+    setEditingItem(null);
+  };
+
+  const handleAddToDaily = (index: number) => {
+    setState(prev => {
+      const questFromPool = prev.questPool[index];
+      const newDailyQuest = {
+        ...questFromPool,
+        id: `daily-${Date.now()}-${Math.random()}`,
+        isCompleted: false,
+        type: 'daily' as const,
+      };
+      return {
+        ...prev,
+        dailyQuests: [...prev.dailyQuests, newDailyQuest]
+      };
+    });
+    setStatToast("Quest Added to Daily");
+    setTimeout(() => setStatToast(null), 2000);
+    playSystemSound('click');
+  };
+
+  const handleRemoveFromDailyByTitle = (title: string) => {
+    setState(prev => {
+      const index = prev.dailyQuests.findIndex(q => q.title === title);
+      if (index === -1) return prev;
+      
+      const newDaily = [...prev.dailyQuests];
+      newDaily.splice(index, 1);
+      return { ...prev, dailyQuests: newDaily };
+    });
+    triggerHaptic('light');
+  };
+
+  const handleRemoveFromDailyById = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      dailyQuests: prev.dailyQuests.filter(q => q.id !== id)
+    }));
+    triggerHaptic('light');
+  };
+
+  const openEditModal = (index: number) => {
+    const quest = state.questPool[index];
+    setEditingItem({ index, data: { type: 'quest', ...quest } });
+    setIsAddModalOpen(true);
   };
 
   const handleDeleteQuest = (index: number) => {
@@ -739,7 +910,26 @@ export default function App() {
   return (
     <div className="min-h-screen pb-24 relative font-mono selection:bg-system-blue selection:text-black">
       
-      <AddItemModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={handleAddItem} />
+      <AddItemModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => { setIsAddModalOpen(false); setEditingItem(null); }} 
+        onAdd={handleAddItem} 
+        editData={editingItem?.data}
+      />
+
+      {/* --- Stat Toast --- */}
+      <AnimatePresence>
+        {statToast && (
+            <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -50 }}
+                className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-system-blue text-black px-6 py-2 rounded-full font-bold box-glow-strong"
+            >
+                {statToast}
+            </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* --- Loot Drop Overlay --- */}
       <AnimatePresence>
@@ -896,14 +1086,6 @@ export default function App() {
         <section className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-bold text-white border-l-4 border-system-blue pl-3">STATUS</h2>
-            {state.unassignedPoints > 0 && (
-              <button
-                onClick={() => setShowStatModal(!showStatModal)}
-                className="animate-pulse px-3 py-1 bg-system-blue text-black text-xs font-bold uppercase rounded hover:scale-105 transition-transform"
-              >
-                Allocate Points ({state.unassignedPoints})
-              </button>
-            )}
           </div>
 
           {/* Radar Chart */}
@@ -912,45 +1094,14 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 bg-abyss/50 rounded flex justify-between items-center box-glow-subtle">
-              <span className="text-gray-400 text-sm">STR</span>
-              <span className="text-white font-bold text-glow">{state.stats.str}</span>
-            </div>
-            <div className="p-3 bg-abyss/50 rounded flex justify-between items-center box-glow-subtle">
-              <span className="text-gray-400 text-sm">VIT</span>
-              <span className="text-white font-bold text-glow">{state.stats.vit}</span>
-            </div>
-            <div className="p-3 bg-abyss/50 rounded flex justify-between items-center box-glow-subtle">
-              <span className="text-gray-400 text-sm">AGI</span>
-              <span className="text-white font-bold text-glow">{state.stats.agi}</span>
-            </div>
-            <div className="p-3 bg-abyss/50 rounded flex justify-between items-center box-glow-subtle">
-              <span className="text-gray-400 text-sm">INT</span>
-              <span className="text-white font-bold text-glow">{state.stats.int}</span>
-            </div>
-            <div className="p-3 bg-abyss/50 rounded flex justify-between items-center col-span-2 box-glow-subtle">
-              <span className="text-gray-400 text-sm">SEN</span>
-              <span className="text-white font-bold text-glow">{state.stats.sen}</span>
+            <StatRow label="STR" value={state.stats.str} icon={Shield} />
+            <StatRow label="VIT" value={state.stats.vit} icon={Activity} />
+            <StatRow label="AGI" value={state.stats.agi} icon={Zap} />
+            <StatRow label="INT" value={state.stats.int} icon={Brain} />
+            <div className="col-span-2">
+                <StatRow label="SEN" value={state.stats.sen} icon={TrendingUp} />
             </div>
           </div>
-
-          {/* Allocation Modal (Inline for simplicity) */}
-          <AnimatePresence>
-            {showStatModal && state.unassignedPoints > 0 && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden space-y-2 border-t border-b border-system-blue/30 py-4"
-              >
-                <StatRow label="Strength" value={state.stats.str} onIncrease={() => increaseStat('str')} canIncrease={state.unassignedPoints > 0} icon={Shield} />
-                <StatRow label="Vitality" value={state.stats.vit} onIncrease={() => increaseStat('vit')} canIncrease={state.unassignedPoints > 0} icon={Activity} />
-                <StatRow label="Agility" value={state.stats.agi} onIncrease={() => increaseStat('agi')} canIncrease={state.unassignedPoints > 0} icon={Zap} />
-                <StatRow label="Intelligence" value={state.stats.int} onIncrease={() => increaseStat('int')} canIncrease={state.unassignedPoints > 0} icon={Brain} />
-                <StatRow label="Sense" value={state.stats.sen} onIncrease={() => increaseStat('sen')} canIncrease={state.unassignedPoints > 0} icon={TrendingUp} />
-              </motion.div>
-            )}
-          </AnimatePresence>
         </section>
 
         {/* Dungeon Section */}
@@ -1015,7 +1166,7 @@ export default function App() {
                 playSystemSound('click');
                 triggerHaptic('light');
               }} 
-              className="text-xs text-system-blue hover:text-white flex items-center gap-1"
+              className="text-xs text-system-blue hover:text-white flex items-center gap-1 relative z-20 cursor-pointer"
             >
               <Settings className="w-3 h-3" />
               {viewMode === 'daily' ? 'MANAGE' : 'VIEW DAILY'}
@@ -1029,21 +1180,30 @@ export default function App() {
                   <p className="text-gray-500 text-sm italic">No quests available. Wait for reset.</p>
                 ) : (
                   state.dailyQuests.map(quest => (
-                    <QuestItem key={quest.id} quest={quest} onComplete={completeQuest} />
+                    <QuestItem 
+                      key={quest.id} 
+                      quest={quest} 
+                      onComplete={completeQuest} 
+                    />
                   ))
                 )
               ) : (
                 state.questPool.length === 0 ? (
                   <p className="text-gray-500 text-sm italic">Pool is empty.</p>
                 ) : (
-                  state.questPool.map((quest, i) => (
-                    <QuestItem 
-                      key={i} 
-                      quest={{ ...quest, id: `pool-${i}`, isCompleted: false, type: 'daily' }} 
-                      onComplete={() => {}} // Cannot complete in pool view
-                      onDelete={() => handleDeleteQuest(i)}
-                    />
-                  ))
+                  state.questPool.map((quest, i) => {
+                    const isInDaily = state.dailyQuests.some(d => d.title === quest.title);
+                    return (
+                      <QuestItem 
+                        key={i} 
+                        quest={{ ...quest, id: `pool-${i}`, isCompleted: false, type: 'daily' }} 
+                        onAddToDaily={!isInDaily ? () => handleAddToDaily(i) : undefined}
+                        onRemoveFromDaily={isInDaily ? () => handleRemoveFromDailyByTitle(quest.title) : undefined}
+                        onEdit={() => openEditModal(i)}
+                        onDelete={() => handleDeleteQuest(i)}
+                      />
+                    );
+                  })
                 )
               )}
             </div>
